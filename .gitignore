@@ -1,17 +1,32 @@
 # rendered output
 output/
 
-# media assets (add your own — see README)
-videos/
-music/
-music-nas/
+# user config (contains server name — set by `bumper init`)
+bumper.yaml
 
-# stray audio/video files
+# personal bumper definitions (user's own bumpers.yaml, not the example)
+bumpers.yaml
+
+# media assets — add your own, see samples/*/README.md for CC0 sources
+/videos/
+/music/
+/music-nas/
+
+# stray audio/video files at the root
 *.mp4
 *.mp3
 *.flac
 *.wav
 *.aac
+
+# media inside samples dirs (READMEs are tracked, actual files are not)
+samples/videos/*.mp4
+samples/videos/*.mkv
+samples/videos/*.mov
+samples/music/*.mp3
+samples/music/*.flac
+samples/music/*.wav
+samples/music/*.aac
 
 # python
 __pycache__/
@@ -19,9 +34,10 @@ __pycache__/
 *.pyo
 .venv/
 
-# old batch scripts (replaced by CLI)
+# old scripts (kept locally for reference, not shipped)
 render_bumpers.py
 render_bumpers_batch2.py
+joeflix-bumper
 
 # os
 .DS_Store

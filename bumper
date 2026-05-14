@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-joeflix-bumper — CLI tool for rendering joeflix bumper videos
+bumper — CLI tool for rendering Adult Swim-style pre-roll bumper videos
 
 Commands:
+  init              First-time setup wizard
   list              Show all bumpers and render status
   render            Render all bumpers not yet rendered
   render --all      Force re-render everything
@@ -14,6 +15,7 @@ Commands:
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -24,6 +26,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 BASE = Path(__file__).parent
 CONFIG = BASE / "bumpers.yaml"
+EXAMPLE_CONFIG = BASE / "bumpers.example.yaml"
+BUMPER_CFG = BASE / "bumper.yaml"
 OUTPUT = BASE / "output"
 FONT = "/System/Library/Fonts/HelveticaNeue.ttc"
 FONT_SIZE = 96
@@ -31,7 +35,6 @@ WIDTH, HEIGHT = 1920, 1080
 TOTAL_DURATION = 10
 FPS = 30
 CARD_GAP = 0.2
-SERVER_NAME = "joeflix"  # change this to your server name
 
 RESET  = "\033[0m"
 BOLD   = "\033[1m"
@@ -39,13 +42,37 @@ GREEN  = "\033[32m"
 YELLOW = "\033[33m"
 CYAN   = "\033[36m"
 DIM    = "\033[2m"
+RED    = "\033[31m"
+
+
+# ── config ───────────────────────────────────────────────────────────────────
+
+def load_cfg():
+    if BUMPER_CFG.exists():
+        with open(BUMPER_CFG) as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+_cfg = load_cfg()
+SERVER_NAME = _cfg.get("server_name", "myserver")
+
+ASSET_DIRS = {
+    "videos": [BASE / "videos", BASE / "samples" / "videos"],
+    "music":  [BASE / "music",  BASE / "samples" / "music"],
+}
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def load_bumpers():
+    if not CONFIG.exists():
+        if EXAMPLE_CONFIG.exists():
+            print(f"{YELLOW}bumpers.yaml not found.{RESET} Run `bumper init` or copy bumpers.example.yaml to get started.")
+        else:
+            print(f"{YELLOW}bumpers.yaml not found.{RESET} Run `bumper init` to set up.")
+        sys.exit(1)
     with open(CONFIG) as f:
-        return yaml.safe_load(f)
+        return yaml.safe_load(f) or []
 
 def save_bumpers(bumpers):
     with open(CONFIG, "w") as f:
@@ -58,7 +85,7 @@ def slugify(text):
     return text[:50]
 
 def out_path(name):
-    return OUTPUT / f"joeflix-bumper-{name}.mp4"
+    return OUTPUT / f"{SERVER_NAME}-bumper-{name}.mp4"
 
 def is_rendered(name):
     return out_path(name).exists()
@@ -82,12 +109,39 @@ def make_card_image(text, path, font):
     draw.text((x, y), text, fill=(255, 255, 255, 255), font=font)
     img.save(path)
 
+def find_asset(rel_path):
+    """Resolve an asset path relative to BASE, checking all asset dirs."""
+    p = BASE / rel_path
+    if p.exists():
+        return p
+    return None
+
+def list_assets(kind):
+    """Return all files of a given kind across all asset dirs."""
+    files = []
+    seen = set()
+    for d in ASSET_DIRS.get(kind, []):
+        if d.exists():
+            for f in sorted(d.glob("*")):
+                if f.is_file() and f.name not in seen:
+                    files.append(f)
+                    seen.add(f.name)
+    return files
+
 def render_one(bumper, verbose=True):
     name = bumper["name"]
     all_cards = bumper["cards"] + [f"[{SERVER_NAME}]"]
     timings = get_timings(len(all_cards))
     music_path = BASE / bumper["music"]
     dest = out_path(name)
+
+    if not music_path.exists():
+        print(f"  {YELLOW}skip{RESET} {name} — music not found: {bumper['music']}")
+        return False
+
+    if bumper.get("video") and not (BASE / bumper["video"]).exists():
+        print(f"  {YELLOW}skip{RESET} {name} — video not found: {bumper['video']}")
+        return False
 
     if verbose:
         print(f"  {CYAN}rendering{RESET} {name}")
@@ -148,16 +202,53 @@ def render_one(bumper, verbose=True):
             return False
 
         size = dest.stat().st_size / 1024 / 1024
-        print(f"  {GREEN}✓{RESET} joeflix-bumper-{name}.mp4 ({size:.1f}MB)")
+        print(f"  {GREEN}✓{RESET} {SERVER_NAME}-bumper-{name}.mp4 ({size:.1f}MB)")
         return True
 
 
 # ── commands ─────────────────────────────────────────────────────────────────
 
+def cmd_init(args):
+    print(f"\n{BOLD}bumper setup{RESET}\n")
+
+    # Server name
+    current = SERVER_NAME if SERVER_NAME != "myserver" else ""
+    prompt = f"  server name [{current}]: " if current else "  server name (e.g. myserver, netflix): "
+    name = input(prompt).strip() or current or "myserver"
+
+    cfg = {"server_name": name}
+    with open(BUMPER_CFG, "w") as f:
+        yaml.dump(cfg, f, default_flow_style=False)
+    print(f"  saved → bumper.yaml  (server will show as [{name}])")
+
+    # Scaffold bumpers.yaml from example
+    if not CONFIG.exists():
+        if EXAMPLE_CONFIG.exists():
+            shutil.copy(EXAMPLE_CONFIG, CONFIG)
+            print(f"  created bumpers.yaml from bumpers.example.yaml")
+        else:
+            save_bumpers([])
+            print(f"  created empty bumpers.yaml")
+    else:
+        print(f"  bumpers.yaml already exists, skipping")
+
+    # Create asset dirs
+    for d in ["videos", "music", "output"]:
+        (BASE / d).mkdir(exist_ok=True)
+    print(f"  created directories: videos/  music/  output/")
+
+    print(f"\n{BOLD}next steps:{RESET}")
+    print(f"  1. add video clips (.mp4) to {BASE}/videos/")
+    print(f"  2. add music (.mp3/.flac) to {BASE}/music/")
+    print(f"     → see samples/videos/README.md and samples/music/README.md for CC0 sources")
+    print(f"  3. edit bumpers.yaml to define your bumpers")
+    print(f"  4. bumper render\n")
+
+
 def cmd_list(args):
     bumpers = load_bumpers()
     rendered = sum(1 for b in bumpers if is_rendered(b["name"]))
-    print(f"\n{BOLD}joeflix bumpers{RESET}  {DIM}({rendered}/{len(bumpers)} rendered){RESET}\n")
+    print(f"\n{BOLD}bumpers{RESET}  {DIM}[{SERVER_NAME}]  ({rendered}/{len(bumpers)} rendered){RESET}\n")
     for b in bumpers:
         name = b["name"]
         status = f"{GREEN}✓{RESET}" if is_rendered(name) else f"{YELLOW}○{RESET}"
@@ -207,7 +298,7 @@ def cmd_add(args):
 
     # Cards
     print("enter cards one at a time. blank line when done.")
-    print(f"{DIM}(\[{SERVER_NAME}\] is always appended automatically){RESET}\n")
+    print(f"{DIM}([{SERVER_NAME}] is always appended automatically){RESET}\n")
     cards = []
     while True:
         card = input(f"  card {len(cards)+1}: ").strip()
@@ -226,14 +317,15 @@ def cmd_add(args):
 
     # Video
     print(f"\n  available videos:")
-    videos = sorted((BASE / "videos").glob("*.mp4"))
+    videos = list_assets("videos")
     for i, v in enumerate(videos):
-        print(f"    {i+1}. {v.stem}")
+        print(f"    {i+1}. {v.stem}  {DIM}({v.parent.name}/){RESET}")
     print(f"    0. black (no video)")
     choice = input("  choose [0]: ").strip()
     if choice and choice != "0":
         try:
-            video = f"videos/{videos[int(choice)-1].name}"
+            chosen = videos[int(choice) - 1]
+            video = str(chosen.relative_to(BASE))
         except (ValueError, IndexError):
             video = None
     else:
@@ -241,14 +333,18 @@ def cmd_add(args):
 
     # Music
     print(f"\n  available music:")
-    tracks = sorted((BASE / "music-nas").glob("*"))
+    tracks = list_assets("music")
+    if not tracks:
+        print(f"  {YELLOW}no music found{RESET} — add files to music/ or samples/music/")
+        sys.exit(1)
     for i, t in enumerate(tracks):
-        print(f"    {i+1}. {t.stem}")
+        print(f"    {i+1}. {t.stem}  {DIM}({t.parent.name}/){RESET}")
     choice = input("  choose [1]: ").strip() or "1"
     try:
-        music = f"music-nas/{tracks[int(choice)-1].name}"
+        chosen = tracks[int(choice) - 1]
+        music = str(chosen.relative_to(BASE))
     except (ValueError, IndexError):
-        music = f"music-nas/{tracks[0].name}"
+        music = str(tracks[0].relative_to(BASE))
 
     # Preview
     print(f"\n{BOLD}preview:{RESET}")
@@ -273,15 +369,23 @@ def cmd_add(args):
 
 
 def cmd_assets(args):
-    print(f"\n{BOLD}videos{RESET}  ({BASE}/videos/)\n")
-    for v in sorted((BASE / "videos").glob("*.mp4")):
-        size = v.stat().st_size / 1024 / 1024
-        print(f"  {v.stem:<30} {size:.1f}MB")
+    print(f"\n{BOLD}videos{RESET}\n")
+    videos = list_assets("videos")
+    if videos:
+        for v in videos:
+            size = v.stat().st_size / 1024 / 1024
+            print(f"  {v.stem:<30} {size:.1f}MB  {DIM}({v.parent.name}/){RESET}")
+    else:
+        print(f"  {DIM}none — add .mp4 files to videos/ or samples/videos/{RESET}")
 
-    print(f"\n{BOLD}music{RESET}  ({BASE}/music-nas/)\n")
-    for m in sorted((BASE / "music-nas").glob("*")):
-        size = m.stat().st_size / 1024 / 1024
-        print(f"  {m.stem:<40} {size:.1f}MB")
+    print(f"\n{BOLD}music{RESET}\n")
+    tracks = list_assets("music")
+    if tracks:
+        for m in tracks:
+            size = m.stat().st_size / 1024 / 1024
+            print(f"  {m.stem:<40} {size:.1f}MB  {DIM}({m.parent.name}/){RESET}")
+    else:
+        print(f"  {DIM}none — add .mp3/.flac files to music/ or samples/music/{RESET}")
     print()
 
 
@@ -293,12 +397,13 @@ def cmd_open(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="joeflix-bumper",
-        description="render and manage joeflix bumper videos",
+        prog="bumper",
+        description="render and manage Adult Swim-style pre-roll bumper videos",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command")
 
+    sub.add_parser("init", help="first-time setup: set server name, scaffold dirs")
     sub.add_parser("list", help="show all bumpers and render status")
 
     p_render = sub.add_parser("render", help="render bumpers")
@@ -311,7 +416,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "list":
+    if args.command == "init":
+        cmd_init(args)
+    elif args.command == "list":
         cmd_list(args)
     elif args.command == "render":
         cmd_render(args)

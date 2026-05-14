@@ -1,0 +1,46 @@
+# bumpers.example.yaml — copy to bumpers.yaml and customize
+#
+# Each bumper needs:
+#   name   — unique slug, used as the output filename
+#   cards  — 2–4 lines of text shown one at a time ([yourserver] is appended automatically)
+#   video  — path to a background .mp4 relative to this directory, or null for plain black
+#   music  — path to a background music file relative to this directory
+#
+# Run `bumper init` to set your server name and scaffold the asset directories.
+
+- name: sit-back
+  cards:
+    - "sit back."
+    - "breathe."
+    - "it's just a movie."
+  video: videos/ocean.mp4
+  music: music/ambient-01.mp3
+
+- name: no-ads
+  cards:
+    - "no ads."
+    - "no algorithm."
+    - "no idea what you should watch."
+  video: null
+  music: music/lofi-01.mp3
+
+- name: welcome
+  cards:
+    - "welcome."
+    - "you made a good choice."
+  video: videos/fire.mp4
+  music: music/ambient-02.mp3
+
+- name: friday-night
+  cards:
+    - "it's friday night."
+    - "you're exactly where you should be."
+  video: videos/rain.mp4
+  music: music/lofi-02.mp3
+
+- name: good-taste
+  cards:
+    - "you have good taste."
+    - "probably."
+  video: null
+  music: music/ambient-01.mp3
