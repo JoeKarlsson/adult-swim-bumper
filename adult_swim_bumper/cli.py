@@ -23,6 +23,7 @@ from pathlib import Path
 
 import yaml
 from PIL import Image, ImageDraw, ImageFont
+from adult_swim_bumper import __version__
 
 # BASE is the working directory — bumper operates on wherever you run it from
 BASE = Path.cwd()
@@ -157,6 +158,16 @@ def make_card_image(text, path, font):
     draw.text((x + 2, y + 2), text, fill=(0, 0, 0, 160), font=font)
     draw.text((x, y), text, fill=(255, 255, 255, 255), font=font)
     img.save(path)
+
+def check_ffmpeg():
+    result = subprocess.run(["ffmpeg", "-version"], capture_output=True)
+    if result.returncode != 0:
+        print(f"{BOLD}error:{RESET} ffmpeg not found.\n")
+        print(f"  install it:")
+        print(f"    Mac:    brew install ffmpeg")
+        print(f"    Linux:  apt install ffmpeg")
+        print(f"    Other:  https://ffmpeg.org/download.html")
+        sys.exit(1)
 
 def list_assets(kind):
     files = []
@@ -303,6 +314,7 @@ def cmd_list(args):
 
 
 def cmd_render(args):
+    check_ffmpeg()
     bumpers = load_bumpers()
     OUTPUT.mkdir(exist_ok=True)
 
@@ -427,7 +439,15 @@ def cmd_assets(args):
 
 
 def cmd_open(args):
-    subprocess.run(["open", str(OUTPUT)])
+    if not OUTPUT.exists():
+        print(f"output folder doesn't exist yet — render something first.")
+        return
+    if sys.platform == "darwin":
+        subprocess.run(["open", str(OUTPUT)])
+    elif sys.platform == "win32":
+        subprocess.run(["explorer", str(OUTPUT)])
+    else:
+        subprocess.run(["xdg-open", str(OUTPUT)])
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -438,6 +458,7 @@ def main():
         description="Adult Swim-style pre-roll bumper video generator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("--version", action="version", version=f"bumper {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("init", help="first-time setup: set server name, scaffold dirs")
