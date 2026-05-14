@@ -93,6 +93,7 @@ def load_cfg():
 
 _cfg = load_cfg()
 SERVER_NAME = _cfg.get("server_name", "myserver")
+DEFAULT_DURATION = _cfg.get("duration", TOTAL_DURATION)
 
 ASSET_DIRS = {
     "videos": [BASE / "videos", BASE / "samples" / "videos"],
@@ -138,7 +139,7 @@ def out_path(name):
 def is_rendered(name):
     return out_path(name).exists()
 
-def get_timings(n_cards, total=TOTAL_DURATION, gap=CARD_GAP):
+def get_timings(n_cards, total, gap=CARD_GAP):
     dur = total / n_cards
     return [
         (round(i * dur, 2), round((i + 1) * dur - gap, 2))
@@ -169,10 +170,11 @@ def list_assets(kind):
                         seen.add(f.name)
     return files
 
-def render_one(bumper, verbose=True):
+def render_one(bumper, verbose=True, duration_override=None):
     name = bumper["name"]
+    duration = duration_override or bumper.get("duration", DEFAULT_DURATION)
     all_cards = bumper["cards"] + [f"[{SERVER_NAME}]"]
-    timings = get_timings(len(all_cards))
+    timings = get_timings(len(all_cards), total=duration)
     music_path = BASE / bumper["music"]
     dest = out_path(name)
 
@@ -223,16 +225,17 @@ def render_one(bumper, verbose=True):
             )
             prev = curr
 
+        fade_out_start = max(duration - 2, duration / 2)
         filter_parts.append(
             f"[{music_idx}:a]volume=0.35,"
             f"afade=t=in:st=0:d=1,"
-            f"afade=t=out:st={TOTAL_DURATION - 2}:d=2[a]"
+            f"afade=t=out:st={fade_out_start}:d=2[a]"
         )
 
         fc = ";\n    ".join(filter_parts)
         cmd += ["-filter_complex", fc,
                 "-map", f"[{prev}]", "-map", "[a]",
-                "-t", str(TOTAL_DURATION), "-r", str(FPS),
+                "-t", str(duration), "-r", str(FPS),
                 "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                 "-c:a", "aac", "-b:a", "192k",
                 str(dest)]
@@ -256,10 +259,14 @@ def cmd_init(args):
     prompt = f"  server name [{current}]: " if current else "  server name (e.g. netflix, myserver): "
     name = input(prompt).strip() or current or "myserver"
 
-    cfg = {"server_name": name}
+    current_dur = DEFAULT_DURATION if DEFAULT_DURATION != TOTAL_DURATION else 10
+    dur_input = input(f"  default duration in seconds [{current_dur}]: ").strip()
+    duration = int(dur_input) if dur_input.isdigit() else current_dur
+
+    cfg = {"server_name": name, "duration": duration}
     with open(BUMPER_CFG, "w") as f:
         yaml.dump(cfg, f, default_flow_style=False)
-    print(f"  saved → bumper.yaml  (server will show as [{name}])")
+    print(f"  saved → bumper.yaml  (server: [{name}], duration: {duration}s)")
 
     if not CONFIG.exists():
         CONFIG.write_text(EXAMPLE_BUMPERS)
@@ -299,6 +306,8 @@ def cmd_render(args):
     bumpers = load_bumpers()
     OUTPUT.mkdir(exist_ok=True)
 
+    duration_override = args.duration if args.duration else None
+
     if args.name:
         matches = [b for b in bumpers if b["name"] == args.name]
         if not matches:
@@ -317,7 +326,7 @@ def cmd_render(args):
     print(f"\nrendering {len(targets)} bumper(s)...\n")
     ok = 0
     for b in targets:
-        if render_one(b):
+        if render_one(b, duration_override=duration_override):
             ok += 1
 
     print(f"\n{ok}/{len(targets)} rendered successfully → {OUTPUT}")
@@ -437,6 +446,8 @@ def main():
     p_render = sub.add_parser("render", help="render bumpers")
     p_render.add_argument("name", nargs="?", help="render a specific bumper by name")
     p_render.add_argument("--all", action="store_true", help="force re-render everything")
+    p_render.add_argument("--duration", type=int, metavar="SECONDS",
+                          help="override duration for this render (ignores bumper.yaml and per-bumper settings)")
 
     sub.add_parser("add", help="interactive wizard to add a new bumper")
     sub.add_parser("assets", help="list available videos and music")

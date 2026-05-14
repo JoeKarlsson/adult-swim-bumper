@@ -6,7 +6,7 @@ A CLI tool for generating [adult swim]-style pre-roll bumper videos for a person
 
 ## What it makes
 
-10-second MP4 videos with:
+Short MP4 videos (configurable duration, default 10s) with:
 - A background video clip (or plain black)
 - White text cards cycling one at a time, with a brief gap between them
 - Background music that fades in and out
@@ -133,18 +133,27 @@ Each bumper:
 - `cards` — 2–4 lines of text shown one at a time (`[yourserver]` always appended as the final card)
 - `video` — path to a background clip relative to this directory, or `null` for plain black
 - `music` — path to a music file relative to this directory
+- `duration` — optional, overrides the project default for this bumper only (e.g. `duration: 15`)
 
 Output filename: `output/{servername}-bumper-{name}.mp4`
 
-## Server name
+## Configuration
 
 Set during `bumper init`, stored in `bumper.yaml`:
 
 ```yaml
 server_name: yourserver
+duration: 10        # default bumper length in seconds
 ```
 
-Change it anytime by editing `bumper.yaml` or re-running `bumper init`. All rendered filenames and the `[yourserver]` closing card update automatically on next render.
+You can also override duration per-bumper in `bumpers.yaml`, or pass `--duration` at render time:
+
+```bash
+bumper render --duration 15            # override for this run only
+bumper render sit-back --duration 8   # one specific bumper
+```
+
+Priority order: `--duration` flag > per-bumper `duration:` field > `bumper.yaml` default > 10s hardcoded fallback.
 
 ## Finding free assets
 
@@ -156,14 +165,13 @@ See `samples/videos/README.md` and `samples/music/README.md` for curated CC0 sou
 
 ## Render settings
 
-Defaults are at the top of `bumper` and can be edited directly:
+These can be changed at the top of `adult_swim_bumper/cli.py`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `FONT` | Helvetica Neue | System font path |
 | `FONT_SIZE` | 96 | Text size in pixels |
 | `WIDTH, HEIGHT` | 1920 × 1080 | Output resolution |
-| `TOTAL_DURATION` | 10 | Bumper length in seconds |
+| `TOTAL_DURATION` | 10 | Fallback duration if not set in `bumper.yaml` |
 | `FPS` | 30 | Frames per second |
 | `CARD_GAP` | 0.2 | Blank gap between cards (seconds) |
 
