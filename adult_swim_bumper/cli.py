@@ -96,6 +96,7 @@ _cfg = load_cfg()
 SERVER_NAME = _cfg.get("server_name", "myserver")
 DEFAULT_DURATION = _cfg.get("duration", TOTAL_DURATION)
 FONT_SIZE = _cfg.get("font_size", _FONT_SIZE_DEFAULT)
+FONT_PATH = _cfg.get("font_path", None)
 _res = _cfg.get("resolution", [_WIDTH_DEFAULT, _HEIGHT_DEFAULT])
 WIDTH, HEIGHT = _res[0], _res[1]
 
@@ -108,6 +109,11 @@ ASSET_DIRS = {
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def get_font(size=FONT_SIZE):
+    if FONT_PATH:
+        try:
+            return ImageFont.truetype(FONT_PATH, size)
+        except (IOError, OSError):
+            print(f"{YELLOW}warning:{RESET} font_path not found: {FONT_PATH} — falling back to system font")
     candidates = [
         "/System/Library/Fonts/HelveticaNeue.ttc",          # macOS
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux

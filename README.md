@@ -143,10 +143,13 @@ Set during `bumper init`, stored in `bumper.yaml`. All fields are optional — d
 
 ```yaml
 server_name: yourserver
-duration: 10          # default bumper length in seconds
-font_size: 96         # text size in pixels
+duration: 10              # default bumper length in seconds
+font_size: 96             # text size in pixels
 resolution: [1920, 1080]  # output width × height
+font_path: /path/to/font.ttf  # optional: use a specific font file
 ```
+
+`font_path` accepts any `.ttf` or `.ttc` file. If omitted, bumper auto-detects Helvetica Neue (macOS), DejaVu Sans (Linux), or Arial (Windows).
 
 Duration can also be overridden per-bumper in `bumpers.yaml`, or at render time:
 
