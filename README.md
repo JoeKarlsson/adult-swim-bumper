@@ -15,28 +15,40 @@ A CLI tool for generating [adult swim]-style pre-roll bumper videos for a person
 ## Requirements
 
 - Python 3.9+
-- [ffmpeg](https://ffmpeg.org/download.html) (`brew install ffmpeg` on Mac)
-- [Pillow](https://pillow.readthedocs.io/) and [PyYAML](https://pyyaml.org/)
-
-```bash
-pip install Pillow pyyaml
-```
+- [ffmpeg](https://ffmpeg.org/download.html) — `brew install ffmpeg` on Mac, `apt install ffmpeg` on Linux
 
 ## Quick start
+
+### Install with pipx (recommended)
+
+[pipx](https://pipx.pypa.io/) installs CLI tools in isolated environments — no virtual env setup required.
+
+```bash
+# Install pipx if you don't have it
+brew install pipx        # macOS
+# or: pip install pipx
+
+# Install bumper
+pipx install git+https://github.com/joekarlsson/adult-swim-bumper.git
+
+# Create a project directory and initialize
+mkdir my-bumpers && cd my-bumpers
+bumper init
+```
+
+### Or clone and run locally
 
 ```bash
 git clone https://github.com/joekarlsson/adult-swim-bumper.git
 cd adult-swim-bumper
-pip install Pillow pyyaml
-
-# First-time setup: set your server name, scaffold dirs
+pip install -r requirements.txt
 python3 bumper init
+```
 
-# Add videos and music (see samples/*/README.md for CC0 sources)
-# Drop files into videos/ and music/
+Then add videos and music (see `samples/*/README.md` for CC0 sources), edit `bumpers.yaml`, and render:
 
-# Edit bumpers.yaml, then render
-python3 bumper render
+```bash
+bumper render
 ```
 
 Output lands in `output/`.
