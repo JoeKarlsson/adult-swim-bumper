@@ -25,8 +25,8 @@ pip install Pillow pyyaml
 ## Quick start
 
 ```bash
-git clone https://github.com/joekarlsson/bumper.git
-cd bumper
+git clone https://github.com/joekarlsson/adult-swim-bumper.git
+cd adult-swim-bumper
 pip install Pillow pyyaml
 
 # First-time setup: set your server name, scaffold dirs
