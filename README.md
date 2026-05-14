@@ -139,21 +139,23 @@ Output filename: `output/{servername}-bumper-{name}.mp4`
 
 ## Configuration
 
-Set during `bumper init`, stored in `bumper.yaml`:
+Set during `bumper init`, stored in `bumper.yaml`. All fields are optional — defaults are shown:
 
 ```yaml
 server_name: yourserver
-duration: 10        # default bumper length in seconds
+duration: 10          # default bumper length in seconds
+font_size: 96         # text size in pixels
+resolution: [1920, 1080]  # output width × height
 ```
 
-You can also override duration per-bumper in `bumpers.yaml`, or pass `--duration` at render time:
+Duration can also be overridden per-bumper in `bumpers.yaml`, or at render time:
 
 ```bash
 bumper render --duration 15            # override for this run only
 bumper render sit-back --duration 8   # one specific bumper
 ```
 
-Priority order: `--duration` flag > per-bumper `duration:` field > `bumper.yaml` default > 10s hardcoded fallback.
+Priority order: `--duration` flag > per-bumper `duration:` field > `bumper.yaml` default > 10s fallback.
 
 ## Finding free assets
 
@@ -165,13 +167,10 @@ See `samples/videos/README.md` and `samples/music/README.md` for curated CC0 sou
 
 ## Render settings
 
-These can be changed at the top of `adult_swim_bumper/cli.py`:
+Most settings live in `bumper.yaml` (see Configuration above). The remaining low-level constants are at the top of `adult_swim_bumper/cli.py`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `FONT_SIZE` | 96 | Text size in pixels |
-| `WIDTH, HEIGHT` | 1920 × 1080 | Output resolution |
-| `TOTAL_DURATION` | 10 | Fallback duration if not set in `bumper.yaml` |
 | `FPS` | 30 | Frames per second |
 | `CARD_GAP` | 0.2 | Blank gap between cards (seconds) |
 

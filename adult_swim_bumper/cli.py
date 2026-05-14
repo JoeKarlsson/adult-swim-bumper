@@ -31,8 +31,8 @@ CONFIG = BASE / "bumpers.yaml"
 BUMPER_CFG = BASE / "bumper.yaml"
 OUTPUT = BASE / "output"
 
-FONT_SIZE = 96
-WIDTH, HEIGHT = 1920, 1080
+_FONT_SIZE_DEFAULT = 96
+_WIDTH_DEFAULT, _HEIGHT_DEFAULT = 1920, 1080
 TOTAL_DURATION = 10
 FPS = 30
 CARD_GAP = 0.2
@@ -95,6 +95,9 @@ def load_cfg():
 _cfg = load_cfg()
 SERVER_NAME = _cfg.get("server_name", "myserver")
 DEFAULT_DURATION = _cfg.get("duration", TOTAL_DURATION)
+FONT_SIZE = _cfg.get("font_size", _FONT_SIZE_DEFAULT)
+_res = _cfg.get("resolution", [_WIDTH_DEFAULT, _HEIGHT_DEFAULT])
+WIDTH, HEIGHT = _res[0], _res[1]
 
 ASSET_DIRS = {
     "videos": [BASE / "videos", BASE / "samples" / "videos"],
@@ -296,13 +299,32 @@ def cmd_init(args):
     print(f"  4. bumper render\n")
 
 
+def missing_assets(bumper):
+    missing = []
+    if bumper.get("video") and not (BASE / bumper["video"]).exists():
+        missing.append(bumper["video"])
+    if not (BASE / bumper["music"]).exists():
+        missing.append(bumper["music"])
+    return missing
+
 def cmd_list(args):
     bumpers = load_bumpers()
     rendered = sum(1 for b in bumpers if is_rendered(b["name"]))
-    print(f"\n{BOLD}bumpers{RESET}  {DIM}[{SERVER_NAME}]  ({rendered}/{len(bumpers)} rendered){RESET}\n")
+    broken = sum(1 for b in bumpers if missing_assets(b))
+    summary = f"({rendered}/{len(bumpers)} rendered"
+    if broken:
+        summary += f", {YELLOW}{broken} missing assets{RESET}"
+    summary += ")"
+    print(f"\n{BOLD}bumpers{RESET}  {DIM}[{SERVER_NAME}]{RESET}  {DIM}{summary}{RESET}\n")
     for b in bumpers:
         name = b["name"]
-        status = f"{GREEN}✓{RESET}" if is_rendered(name) else f"{YELLOW}○{RESET}"
+        absent = missing_assets(b)
+        if absent:
+            status = f"{YELLOW}⚠{RESET}"
+        elif is_rendered(name):
+            status = f"{GREEN}✓{RESET}"
+        else:
+            status = f"{YELLOW}○{RESET}"
         cards_preview = " → ".join(b["cards"][:2])
         if len(b["cards"]) > 2:
             cards_preview += " → ..."
@@ -310,6 +332,8 @@ def cmd_list(args):
         print(f"  {status} {BOLD}{name}{RESET}")
         print(f"     {DIM}{cards_preview} → [{SERVER_NAME}]{RESET}")
         print(f"     {DIM}video: {video}  music: {Path(b['music']).stem}{RESET}")
+        for path in absent:
+            print(f"     {YELLOW}missing: {path}{RESET}")
         print()
 
 
