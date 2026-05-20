@@ -20,3 +20,8 @@ bumper = "adult_swim_bumper.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/joekarlsson/adult-swim-bumper"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]

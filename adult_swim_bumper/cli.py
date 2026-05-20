@@ -11,9 +11,11 @@ Commands:
   add               Interactive wizard to define a new bumper
   assets            List available videos and music files
   open              Open output folder in Finder
+  random            Print path to a random rendered bumper
 """
 import argparse
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -36,6 +38,8 @@ _WIDTH_DEFAULT, _HEIGHT_DEFAULT = 1920, 1080
 TOTAL_DURATION = 10
 FPS = 30
 CARD_GAP = 0.2
+VID_FADE_IN = 0.3   # seconds — video fades in from black
+VID_FADE_OUT = 0.5  # seconds — video fades out to black
 
 RESET  = "\033[0m"
 BOLD   = "\033[1m"
@@ -97,6 +101,7 @@ SERVER_NAME = _cfg.get("server_name", "myserver")
 DEFAULT_DURATION = _cfg.get("duration", TOTAL_DURATION)
 FONT_SIZE = _cfg.get("font_size", _FONT_SIZE_DEFAULT)
 FONT_PATH = _cfg.get("font_path", None)
+FONT_INDEX = _cfg.get("font_index", 0)
 _res = _cfg.get("resolution", [_WIDTH_DEFAULT, _HEIGHT_DEFAULT])
 WIDTH, HEIGHT = _res[0], _res[1]
 
@@ -111,20 +116,40 @@ ASSET_DIRS = {
 def get_font(size=FONT_SIZE):
     if FONT_PATH:
         try:
-            return ImageFont.truetype(FONT_PATH, size)
+            return ImageFont.truetype(FONT_PATH, size, index=FONT_INDEX)
         except (IOError, OSError):
             print(f"{YELLOW}warning:{RESET} font_path not found: {FONT_PATH} — falling back to system font")
     candidates = [
-        "/System/Library/Fonts/HelveticaNeue.ttc",          # macOS
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
-        "C:/Windows/Fonts/arial.ttf",                        # Windows
+        ("/System/Library/Fonts/HelveticaNeue.ttc", 4),   # macOS — Condensed Bold
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0),
+        ("C:/Windows/Fonts/arial.ttf", 0),
     ]
-    for path in candidates:
+    for path, idx in candidates:
         try:
-            return ImageFont.truetype(path, size)
+            return ImageFont.truetype(path, size, index=idx)
         except (IOError, OSError):
             continue
     return ImageFont.load_default()
+
+
+def _wrap_text(text, font, max_width):
+    """Break text into lines that fit within max_width pixels."""
+    words = text.split()
+    if not words:
+        return [""]
+    tmp = Image.new("RGB", (1, 1))
+    draw = ImageDraw.Draw(tmp)
+    lines, current = [], words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        w = draw.textbbox((0, 0), candidate, font=font)[2]
+        if w <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
 
 def load_bumpers():
     if not CONFIG.exists():
@@ -159,13 +184,17 @@ def get_timings(n_cards, total, gap=CARD_GAP):
 def make_card_image(text, path, font):
     img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    bbox = draw.textbbox((0, 0), text, font=font)
-    w = bbox[2] - bbox[0]
-    h = bbox[3] - bbox[1]
-    x = (WIDTH - w) / 2
-    y = (HEIGHT - h) / 2
-    draw.text((x + 2, y + 2), text, fill=(0, 0, 0, 160), font=font)
-    draw.text((x, y), text, fill=(255, 255, 255, 255), font=font)
+    max_w = int(WIDTH * 0.88)
+    lines = _wrap_text(text, font, max_w)
+    sample_h = draw.textbbox((0, 0), "Ag", font=font)[3]
+    spacing = int(sample_h * 0.18)
+    total_h = sample_h * len(lines) + spacing * (len(lines) - 1)
+    y = (HEIGHT - total_h) / 2
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        x = (WIDTH - (bbox[2] - bbox[0])) / 2
+        draw.text((x, y), line, fill=(255, 255, 255, 255), font=font)
+        y += sample_h + spacing
     img.save(path)
 
 def check_ffmpeg():
@@ -190,7 +219,158 @@ def list_assets(kind):
                         seen.add(f.name)
     return files
 
+def _is_sandwich(bumper):
+    return "intro_cards" in bumper or "outro_cards" in bumper
+
+
+def render_sandwich(bumper, verbose=True):
+    """Render intro cards → fullscreen video clip → outro cards."""
+    name = bumper["name"]
+    intro_cards = bumper.get("intro_cards", [])
+    outro_cards = bumper.get("outro_cards", []) + [f"[{SERVER_NAME}]"]
+    clip_dur = float(bumper.get("clip_duration", 4))
+    card_time = 2.5
+
+    intro_dur = round(len(intro_cards) * card_time, 2) if intro_cards else 0.0
+    outro_dur = round(len(outro_cards) * card_time, 2)
+    total_dur = round(intro_dur + clip_dur + outro_dur, 2)
+
+    music_path = BASE / bumper["music"]
+    dest = out_path(name)
+
+    if not music_path.exists():
+        print(f"  {YELLOW}skip{RESET} {name} — music not found: {bumper['music']}")
+        return False
+    if not bumper.get("video") or not (BASE / bumper["video"]).exists():
+        print(f"  {YELLOW}skip{RESET} {name} — video required for sandwich mode")
+        return False
+
+    if verbose:
+        print(f"  {CYAN}rendering{RESET} {name}  {DIM}(sandwich, {total_dur:.1f}s){RESET}")
+
+    font = get_font()
+    video_path = BASE / bumper["video"]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        intro_card_paths = []
+        for i, card in enumerate(intro_cards):
+            p = os.path.join(tmpdir, f"intro_{i:02d}.png")
+            make_card_image(card, p, font)
+            intro_card_paths.append(p)
+
+        outro_card_paths = []
+        for i, card in enumerate(outro_cards):
+            p = os.path.join(tmpdir, f"outro_{i:02d}.png")
+            make_card_image(card, p, font)
+            outro_card_paths.append(p)
+
+        n_intro = len(intro_cards)
+        n_outro = len(outro_cards)
+
+        # Input ordering:
+        # 0: intro black lavfi
+        # 1..n_intro: intro card PNGs
+        # n_intro+1: video
+        # n_intro+2: outro black lavfi
+        # n_intro+3..n_intro+2+n_outro: outro card PNGs
+        # n_intro+3+n_outro: music
+        video_idx = 1 + n_intro
+        outro_bg_idx = video_idx + 1
+        outro_card_start = outro_bg_idx + 1
+        music_idx = outro_card_start + n_outro
+
+        cmd = ["ffmpeg", "-y"]
+        cmd += ["-f", "lavfi", "-i",
+                f"color=c=black:size={WIDTH}x{HEIGHT}:rate={FPS}:duration={max(intro_dur, 0.1)}"]
+        for p in intro_card_paths:
+            cmd += ["-i", p]
+        cmd += ["-i", str(video_path)]
+        cmd += ["-f", "lavfi", "-i",
+                f"color=c=black:size={WIDTH}x{HEIGHT}:rate={FPS}:duration={outro_dur}"]
+        for p in outro_card_paths:
+            cmd += ["-i", p]
+        music_start = bumper.get("music_start", 0)
+        if music_start:
+            cmd += ["-ss", str(music_start)]
+        cmd += ["-i", str(music_path)]
+
+        filter_parts = []
+        segments = []
+
+        if intro_cards:
+            intro_timings = get_timings(n_intro, total=intro_dur)
+            filter_parts.append(f"[0:v]setsar=1[intro_bg]")
+            prev = "intro_bg"
+            for i, (start, end) in enumerate(intro_timings):
+                curr = f"intro_s{i}"
+                filter_parts.append(
+                    f"[{prev}][{i+1}:v]overlay=0:0:enable='between(t,{start},{end})'[{curr}]"
+                )
+                prev = curr
+            filter_parts.append(
+                f"[{prev}]trim=duration={intro_dur},setpts=PTS-STARTPTS[intro_seg]"
+            )
+            segments.append("[intro_seg]")
+
+        filter_parts.append(
+            f"[{video_idx}:v]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,"
+            f"crop={WIDTH}:{HEIGHT},setsar=1,trim=duration={clip_dur},setpts=PTS-STARTPTS[clip]"
+        )
+        segments.append("[clip]")
+
+        outro_timings = get_timings(n_outro, total=outro_dur)
+        filter_parts.append(f"[{outro_bg_idx}:v]setsar=1[outro_bg]")
+        prev = "outro_bg"
+        for i, (start, end) in enumerate(outro_timings):
+            curr = f"outro_s{i}"
+            filter_parts.append(
+                f"[{prev}][{outro_card_start+i}:v]overlay=0:0:enable='between(t,{start},{end})'[{curr}]"
+            )
+            prev = curr
+        filter_parts.append(
+            f"[{prev}]trim=duration={outro_dur},setpts=PTS-STARTPTS[outro_seg]"
+        )
+        segments.append("[outro_seg]")
+
+        filter_parts.append(
+            f"{''.join(segments)}concat=n={len(segments)}:v=1:a=0[concat_v]"
+        )
+
+        vid_fade_out = max(0, total_dur - VID_FADE_OUT)
+        filter_parts.append(
+            f"[concat_v]fade=t=in:st=0:d={VID_FADE_IN},"
+            f"fade=t=out:st={vid_fade_out}:d={VID_FADE_OUT}[vout]"
+        )
+
+        fade_out_start = max(total_dur - 2, total_dur / 2)
+        filter_parts.append(
+            f"[{music_idx}:a]volume=0.35,"
+            f"afade=t=in:st=0:d=1,"
+            f"afade=t=out:st={fade_out_start}:d=2[a]"
+        )
+
+        fc = ";\n    ".join(filter_parts)
+        cmd += ["-filter_complex", fc,
+                "-map", "[vout]", "-map", "[a]",
+                "-t", str(total_dur), "-r", str(FPS),
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                "-c:a", "aac", "-b:a", "192k",
+                str(dest)]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"  {YELLOW}error:{RESET} {result.stderr[-500:]}")
+            return False
+
+        size = dest.stat().st_size / 1024 / 1024
+        print(f"  {GREEN}✓{RESET} {SERVER_NAME}-bumper-{name}.mp4 ({size:.1f}MB)")
+        return True
+
+
 def render_one(bumper, verbose=True, duration_override=None):
+    if _is_sandwich(bumper):
+        return render_sandwich(bumper, verbose=verbose)
+
     name = bumper["name"]
     duration = duration_override or bumper.get("duration", DEFAULT_DURATION)
     all_cards = bumper["cards"] + [f"[{SERVER_NAME}]"]
@@ -228,6 +408,9 @@ def render_one(bumper, verbose=True, duration_override=None):
 
         for p in card_paths:
             cmd += ["-i", p]
+        music_start = bumper.get("music_start", 0)
+        if music_start:
+            cmd += ["-ss", str(music_start)]
         cmd += ["-i", str(music_path)]
 
         n = len(all_cards)
@@ -245,6 +428,12 @@ def render_one(bumper, verbose=True, duration_override=None):
             )
             prev = curr
 
+        vid_fade_out = max(0, duration - VID_FADE_OUT)
+        filter_parts.append(
+            f"[{prev}]fade=t=in:st=0:d={VID_FADE_IN},"
+            f"fade=t=out:st={vid_fade_out}:d={VID_FADE_OUT}[vout]"
+        )
+
         fade_out_start = max(duration - 2, duration / 2)
         filter_parts.append(
             f"[{music_idx}:a]volume=0.35,"
@@ -254,7 +443,7 @@ def render_one(bumper, verbose=True, duration_override=None):
 
         fc = ";\n    ".join(filter_parts)
         cmd += ["-filter_complex", fc,
-                "-map", f"[{prev}]", "-map", "[a]",
+                "-map", "[vout]", "-map", "[a]",
                 "-t", str(duration), "-r", str(FPS),
                 "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                 "-c:a", "aac", "-b:a", "192k",
@@ -307,7 +496,12 @@ def cmd_init(args):
 
 def missing_assets(bumper):
     missing = []
-    if bumper.get("video") and not (BASE / bumper["video"]).exists():
+    if _is_sandwich(bumper):
+        if not bumper.get("video"):
+            missing.append("video (required for sandwich)")
+        elif not (BASE / bumper["video"]).exists():
+            missing.append(bumper["video"])
+    elif bumper.get("video") and not (BASE / bumper["video"]).exists():
         missing.append(bumper["video"])
     if not (BASE / bumper["music"]).exists():
         missing.append(bumper["music"])
@@ -331,12 +525,19 @@ def cmd_list(args):
             status = f"{GREEN}✓{RESET}"
         else:
             status = f"{YELLOW}○{RESET}"
-        cards_preview = " → ".join(b["cards"][:2])
-        if len(b["cards"]) > 2:
-            cards_preview += " → ..."
+        if _is_sandwich(b):
+            intro = b.get("intro_cards", [])
+            outro = b.get("outro_cards", [])
+            cards_preview = f"[intro: {len(intro)}] → video → [outro: {len(outro)}]"
+            card_suffix = ""
+        else:
+            cards_preview = " → ".join(b["cards"][:2])
+            if len(b["cards"]) > 2:
+                cards_preview += " → ..."
+            card_suffix = f" → [{SERVER_NAME}]"
         video = Path(b["video"]).stem if b.get("video") else "black"
         print(f"  {status} {BOLD}{name}{RESET}")
-        print(f"     {DIM}{cards_preview} → [{SERVER_NAME}]{RESET}")
+        print(f"     {DIM}{cards_preview}{card_suffix}{RESET}")
         print(f"     {DIM}video: {video}  music: {Path(b['music']).stem}{RESET}")
         for path in absent:
             print(f"     {YELLOW}missing: {path}{RESET}")
@@ -386,8 +587,8 @@ def cmd_add(args):
     while True:
         card = input(f"  card {len(cards)+1}: ").strip()
         if not card:
-            if len(cards) < 2:
-                print("  need at least 2 cards.")
+            if len(cards) < 1:
+                print("  need at least 1 card.")
                 continue
             break
         cards.append(card)
@@ -468,6 +669,23 @@ def cmd_assets(args):
     print()
 
 
+def cmd_random(args):
+    rendered = [b for b in load_bumpers() if is_rendered(b["name"])]
+    if not rendered:
+        print("no rendered bumpers found — run `bumper render` first.")
+        return
+    b = random.choice(rendered)
+    path = out_path(b["name"])
+    print(str(path))
+    if args.open:
+        if sys.platform == "darwin":
+            subprocess.run(["open", str(path)])
+        elif sys.platform == "win32":
+            subprocess.run(["start", str(path)], shell=True)
+        else:
+            subprocess.run(["xdg-open", str(path)])
+
+
 def cmd_open(args):
     if not OUTPUT.exists():
         print(f"output folder doesn't exist yet — render something first.")
@@ -504,6 +722,9 @@ def main():
     sub.add_parser("assets", help="list available videos and music")
     sub.add_parser("open", help="open output folder in Finder")
 
+    p_random = sub.add_parser("random", help="print path to a random rendered bumper")
+    p_random.add_argument("--open", action="store_true", help="open the bumper in the default player")
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -518,6 +739,8 @@ def main():
         cmd_assets(args)
     elif args.command == "open":
         cmd_open(args)
+    elif args.command == "random":
+        cmd_random(args)
     else:
         parser.print_help()
 
