@@ -6,9 +6,9 @@ A CLI tool for generating [adult swim]-style pre-roll bumper videos for a person
 
 ## Recording (November 2026)
 
-[![A jellyfish drifting in dark blue water with white text reading "no idea what you should watch."](.github/readme/2026-11-recording.webp)](.github/readme/2026-11-recording.mp4)
+![A jellyfish drifting in dark blue water with white text reading "no idea what you should watch."](.github/readme/2026-11-recording.gif)
 
-What Adult Swim Bumper looked like in November 2026, recorded for [its page on joekarlsson.com](https://www.joekarlsson.com/work/adult-swim-bumper/). Click the picture to play the video.
+What Adult Swim Bumper looked like in November 2026, recorded for [its page on joekarlsson.com](https://www.joekarlsson.com/work/adult-swim-bumper/). The full-quality video is [2026-11-recording.mp4](.github/readme/2026-11-recording.mp4).
 
 ## What it makes
 
