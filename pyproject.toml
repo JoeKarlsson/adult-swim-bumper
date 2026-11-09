@@ -7,11 +7,11 @@ name = "adult-swim-bumper"
 version = "0.1.0"
 description = "Adult Swim-style pre-roll bumper video generator CLI"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 keywords = ["plex", "bumper", "adult-swim", "video", "cli", "pre-roll", "tunarr"]
 dependencies = [
-    "Pillow>=9.0",
+    "Pillow>=13.0",
     "PyYAML>=6.0",
 ]
 
@@ -23,5 +23,5 @@ Homepage = "https://github.com/joekarlsson/adult-swim-bumper"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4.2",
+    "pytest>=9.0.3",
 ]

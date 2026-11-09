@@ -4,7 +4,7 @@ Thanks for your interest. Here's how to get set up and submit changes.
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.11+
 - ffmpeg (`brew install ffmpeg` on Mac, `apt install ffmpeg` on Linux)
 - [pipx](https://pipx.pypa.io/) or pip
 
