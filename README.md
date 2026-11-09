@@ -1,18 +1,14 @@
 # bumper
 
-A CLI for making [adult swim]-style pre-roll bumpers for a personal media
-server: white text cards one at a time over a background clip (or black) and
-music, ending on your server name in brackets. You define bumpers in YAML, drop
-in your own video and music, and it renders MP4s you can use as pre-rolls via
-[Tunarr](https://github.com/chrisbenincasa/tunarr) or similar tools.
-
 ![A jellyfish drifting in dark blue water with white text reading "no idea what you should watch."](.github/readme/2026-11-recording.gif)
 
-## Artist statement
+Adult Swim's bumpers were a black screen and plain white text, one card at a
+time, then [adult swim] and you were back in the show. bumper makes those for
+your own media server: write a few cards in YAML, add a clip and some music, and
+it renders MP4s that end on your server's name in brackets. 121 of them play
+before movies on Joeflix, the Plex server I run for friends and family.
 
-I run a Plex server called Joeflix for my friends and family, and Plex has no personality. You hit play and it could be anyone's server. The one place it lets you say something is the short video before a movie, so every movie on Joeflix now opens with a personal message from me to my friends.
-
-[Read the full statement](https://www.joekarlsson.com/work/adult-swim-bumper/).
+[Read the full statement](https://www.joekarlsson.com/work/adult-swim-bumper/)
 
 ## Quick start
 
