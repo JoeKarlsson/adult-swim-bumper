@@ -3,10 +3,10 @@
 ![A jellyfish drifting in dark blue water with white text reading "no idea what you should watch."](.github/readme/2026-11-recording.gif)
 
 Adult Swim's bumpers were a black screen and plain white text, one card at a
-time, then [adult swim] and you were back in the show. bumper makes those for
-your own media server: write a few cards in YAML, add a clip and some music, and
-it renders MP4s that end on your server's name in brackets. 121 of them play
-before movies on Joeflix, the Plex server I run for friends and family.
+time, then [adult swim] and you were back in the show, and it was the first TV I
+watched that seemed like weirdos made it for other weirdos. bumper makes those
+for your own media server, so every movie opens with a few lines from you and
+ends on your server's name in brackets.
 
 [Read the full statement](https://www.joekarlsson.com/work/adult-swim-bumper/)
 
