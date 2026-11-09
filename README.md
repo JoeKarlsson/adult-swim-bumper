@@ -10,6 +10,12 @@ A CLI tool for generating [adult swim]-style pre-roll bumper videos for a person
 
 What Adult Swim Bumper looked like in November 2026, recorded for [its page on joekarlsson.com](https://www.joekarlsson.com/work/adult-swim-bumper/). The full-quality video is [2026-11-recording.mp4](.github/readme/2026-11-recording.mp4).
 
+## Artist statement
+
+I run a Plex server called Joeflix for my friends and family, and Plex has no personality. You hit play and it could be anyone's server. The one place it lets you say something is the short video before a movie, so every movie on Joeflix now opens with a personal message from me to my friends.
+
+[Read the full statement](https://www.joekarlsson.com/work/adult-swim-bumper/).
+
 ## What it makes
 
 Short MP4 videos (configurable duration, default 10s) with:
